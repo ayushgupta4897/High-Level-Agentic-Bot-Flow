@@ -43,14 +43,14 @@ backend:
 wait-for-backend:
 	@echo "🔍 Checking backend health..."
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://localhost:8000/health > /dev/null 2>&1; then \
+		if curl -s http://localhost:8000/api/v1/health > /dev/null 2>&1; then \
 			echo "✅ Backend is ready at http://localhost:8000"; \
 			break; \
 		fi; \
 		echo "⏳ Waiting for backend... (attempt $$i/10)"; \
 		sleep 2; \
 	done
-	@if ! curl -s http://localhost:8000/health > /dev/null 2>&1; then \
+	@if ! curl -s http://localhost:8000/api/v1/health > /dev/null 2>&1; then \
 		echo "❌ Backend failed to start after 20 seconds"; \
 		exit 1; \
 	fi

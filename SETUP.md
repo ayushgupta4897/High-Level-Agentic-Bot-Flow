@@ -80,13 +80,6 @@ zip -r travel-agent-backend.zip . -x "*.git*" "*__pycache__*"
 # Upload to Beanstalk with Python 3.9 platform
 ```
 
-### Frontend (Vercel)
-```bash
-cd frontend
-vercel --prod
-# Or connect GitHub repo to Vercel dashboard
-```
-
 ## 🐛 Troubleshooting
 
 ### Common Issues:
