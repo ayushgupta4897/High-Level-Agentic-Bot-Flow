@@ -32,6 +32,20 @@ make clean      # Clean up processes and cache
 make ps         # Show running processes
 ```
 
+## 📸 Application Screenshots
+
+### Chat Interface & Travel Planning
+![Travel Agent Chat Interface](Screenshot%202025-08-24%20at%208.29.08%20PM.png)
+*Main chat interface showing conversation with the AI travel agent, complete with travel recommendations for flights, hotels, and activities*
+
+### Session Management & Inspector Panel  
+![Session Sidebar and Inspector](Screenshot%202025-08-24%20at%208.29.22%20PM.png)
+*Session sidebar with conversation history and real-time inspector panel showing agent actions, memory updates, and travel preferences*
+
+### Clean Start Interface
+![New Chat Interface](Screenshot%202025-08-24%20at%208.29.41%20PM.png)
+*Clean starting interface ready for new travel planning conversations*
+
 ## 🎯 Features
 
 ### Core Capabilities
