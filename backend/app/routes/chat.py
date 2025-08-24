@@ -1,4 +1,4 @@
-"""Chat API routes with SSE support"""
+"""Chat API routes with comprehensive travel agent functionality"""
 
 import logging
 from fastapi import APIRouter, HTTPException, Request
@@ -10,11 +10,16 @@ from app.core.schemas import (
     ChatMessageResponse, 
     ConversationHistoryResponse,
     ContextResponse,
-    ErrorResponse
+    ErrorResponse,
+    SessionListResponse,
+    SessionSummary,
+    SessionUpdateRequest,
+    PreferenceUpdateRequest
 )
 from app.core.agent import TravelAgent
 from app.core.sse import sse_generator
 from app.core.memory import MemoryManager
+from app.clients.mongodb_client import mongodb_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -24,13 +29,12 @@ async def send_message(request: ChatMessageRequest, stream_response: str = "fals
     """Send chat message with optional streaming support"""
     
     try:
+        # Create agent instance at the start of the function
+        agent = TravelAgent(request.session_id)
         should_stream = stream_response.lower() == "true"
         
         if should_stream:
             # Return SSE streaming response
-            from app.core.agent import TravelAgent
-            agent = TravelAgent(request.session_id)
-            
             return EventSourceResponse(
                 agent.process_message_stream(request.message),
                 headers={
@@ -43,7 +47,6 @@ async def send_message(request: ChatMessageRequest, stream_response: str = "fals
             )
         else:
             # Regular non-streaming response
-            agent = TravelAgent(request.session_id)
             result = await agent.process_message(request.message)
             
             return ChatMessageResponse(
@@ -64,7 +67,6 @@ async def send_message_stream(request: ChatMessageRequest):
     """Send chat message with streaming response (ChatGPT-like)"""
     
     try:
-        from app.core.agent import TravelAgent
         agent = TravelAgent(request.session_id)
         
         return EventSourceResponse(
@@ -150,6 +152,81 @@ async def get_context(session_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get context: {str(e)}"
+        )
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def get_all_sessions(limit: int = 50):
+    """Get all chat sessions for the sidebar"""
+    
+    try:
+        sessions_data = await mongodb_client.get_all_sessions(limit=limit)
+        
+        sessions = []
+        for session_data in sessions_data:
+            sessions.append(SessionSummary(
+                session_id=session_data["session_id"],
+                title=session_data["title"],
+                last_message=session_data.get("last_message"),
+                last_updated=session_data["last_updated"],
+                created_at=session_data["created_at"],
+                message_count=session_data["message_count"],
+                destination=session_data.get("destination"),
+                budget=session_data.get("budget")
+            ))
+        
+        return SessionListResponse(
+            sessions=sessions,
+            total=len(sessions)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting sessions: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get sessions: {str(e)}"
+        )
+
+@router.put("/session/{session_id}")
+async def update_session(session_id: str, request: SessionUpdateRequest):
+    """Update session title"""
+    
+    try:
+        if request.title:
+            await mongodb_client.update_session_title(session_id, request.title)
+        
+        return {
+            "status": "success",
+            "message": f"Session {session_id} updated",
+            "session_id": session_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating session: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update session: {str(e)}"
+        )
+
+@router.post("/preferences")
+async def update_preferences(request: PreferenceUpdateRequest):
+    """Update user preferences for a session"""
+    
+    try:
+        memory = MemoryManager(request.session_id)
+        updates = await memory.update_preferences(request.updates)
+        
+        return {
+            "status": "success",
+            "message": "Preferences updated successfully",
+            "session_id": request.session_id,
+            "updates": updates
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating preferences: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update preferences: {str(e)}"
         )
 
 @router.delete("/session/{session_id}")

@@ -2,18 +2,50 @@
 
 A conversational AI travel agent that demonstrates agentic bot flows with multi-step planning, memory management, and real-time updates using Server-Sent Events (SSE).
 
+## 🚀 Quick Start
+
+Get the entire development environment running with one command:
+
+```bash
+make dev
+```
+
+This will:
+1. Start the backend server (FastAPI + MongoDB)
+2. Wait for it to be ready
+3. Start the frontend server (Vue.js + Vite)
+4. Display URLs for both services
+
+**That's it!** Your travel agent is ready at:
+- 🎨 **Frontend**: http://localhost:3000
+- 🔧 **Backend**: http://localhost:8000  
+- 📚 **API Docs**: http://localhost:8000/docs
+
+### Other Useful Commands
+
+```bash
+make help       # Show all available commands
+make install    # Install all dependencies
+make health     # Check service status
+make stop       # Stop all servers
+make clean      # Clean up processes and cache
+make ps         # Show running processes
+```
+
 ## 🎯 Features
 
 ### Core Capabilities
 - **Intelligent Conversation**: Natural language processing for travel requests
 - **Agent Orchestration**: Multi-step planning for flights, hotels, and activities
 - **Memory Management**: Persistent user preferences and conversation context
+- **Session Persistence**: Complete conversation history with intelligent session naming
 - **Real-time Updates**: SSE-based live agent action streaming
 - **Web Search Integration**: OpenAI-powered web search for current travel information
 - **Contextual Responses**: Maintains conversation flow and handles clarifications
 
 ### User Experience
 - **Interactive Chat Interface**: Clean, modern chat UI with typing indicators
+- **Session Management**: ChatGPT-style session sidebar with intelligent naming
 - **Inspector Panel**: Real-time view of agent actions, memory updates, and preferences  
 - **Responsive Design**: Works on desktop and mobile devices
 - **Error Handling**: Graceful error recovery with clear user feedback
@@ -22,9 +54,9 @@ A conversational AI travel agent that demonstrates agentic bot flows with multi-
 
 ### System Overview
 ```
-Frontend (Vue.js + Vercel)
+Frontend (Vue.js)
     ↕️ SSE + HTTP
-Backend (FastAPI + Beanstalk)
+Backend (FastAPI)
     ↕️ 
 MongoDB Atlas + OpenAI API
 ```
@@ -34,7 +66,7 @@ MongoDB Atlas + OpenAI API
 backend/
 ├── app/
 │   ├── main.py                 # FastAPI application entry point
-│   ├── application.py          # AWS Beanstalk entry point
+│   ├── application.py          # Application entry point
 │   ├── config/
 │   │   ├── settings.py         # Environment configuration
 │   │   ├── constants.py        # Application constants
@@ -62,27 +94,29 @@ frontend/
 │   ├── App.vue                 # Main application component
 │   ├── components/
 │   │   ├── ChatInterface.vue   # Chat UI with message history
-│   │   └── InspectorPanel.vue  # Real-time agent action viewer
+│   │   ├── InspectorPanel.vue  # Real-time agent action viewer
+│   │   └── SessionSidebar.vue  # Session management sidebar
 │   ├── composables/
 │   │   ├── useSSE.ts           # Server-sent events composable
-│   │   └── useChat.ts          # Chat state and functionality
+│   │   ├── useChat.ts          # Chat state and functionality
+│   │   └── useMarkdown.ts      # Markdown rendering utilities
 │   ├── services/
 │   │   └── api.ts              # HTTP API client
 │   ├── stores/
-│   │   ├── chat.ts             # Chat state management (Pinia)
+│   │   ├── chat.ts             # Chat state management (Pinia)  
+│   │   ├── sessions.ts         # Session management state
 │   │   └── preferences.ts      # User preferences state
 │   └── types/
 │       └── index.ts            # TypeScript interfaces
-├── package.json
-└── vercel.json                 # Vercel deployment config
+└── package.json
 ```
 
-## 🚀 Quick Start
+## 📋 Manual Setup
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.11+
 - Node.js 18+
-- MongoDB Atlas account
+- MongoDB Atlas account (or local MongoDB)
 - OpenAI API key
 
 ### Backend Setup
@@ -97,9 +131,9 @@ pip install -r requirements.txt
 # (MongoDB Atlas connection string and OpenAI API key are already configured)
 
 # Run the application
-python -m app.main
+python application.py
 
-# Or for development
+# Or for development with auto-reload
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -147,10 +181,12 @@ The frontend will start at `http://localhost:3000`
 
 ### Memory System
 The agent remembers:
-- **Travel Preferences**: Budget, destination, dates, group size
-- **Dietary Requirements**: Vegetarian, allergies, special needs
-- **Activity Preferences**: Adventure, culture, relaxation, food
-- **Conversation Context**: Previous messages and decisions
+- **Travel Preferences**: Budget, destination, dates, group size, origin city
+- **Dietary Requirements**: Vegetarian, allergies, special dietary needs
+- **Activity Preferences**: Adventure, culture, relaxation, food experiences
+- **Stay Preferences**: Hotel type, accommodation preferences
+- **Conversation Context**: Complete session history and previous decisions
+- **Session Metadata**: Intelligent titles, message counts, travel details
 
 ## 💬 Conversation Examples
 
@@ -223,10 +259,14 @@ This budget will give you a wonderful 3-day Goa experience with comfortable acco
 
 ### Chat Endpoints
 - `POST /api/v1/chat/message` - Send chat message
+- `POST /api/v1/chat/message/stream` - Send chat message with streaming response
 - `GET /api/v1/chat/events/{session_id}` - SSE stream for real-time updates
 - `GET /api/v1/chat/history/{session_id}` - Get conversation history
 - `GET /api/v1/chat/context/{session_id}` - Get session context
+- `GET /api/v1/chat/sessions` - Get all sessions
+- `PUT /api/v1/chat/session/{session_id}` - Update session details
 - `DELETE /api/v1/chat/session/{session_id}` - Clear session data
+- `POST /api/v1/chat/preferences` - Update user preferences
 
 ### Health Endpoints  
 - `GET /api/v1/health` - Basic health check
@@ -241,43 +281,12 @@ This budget will give you a wonderful 3-day Goa experience with comfortable acco
 - `error` - Error messages
 - `heartbeat` - Keep connection alive
 
-## 🚢 Deployment
-
-### Backend Deployment (AWS Beanstalk)
-1. **Package the application**:
-   ```bash
-   cd backend
-   zip -r travel-agent-backend.zip . -x "*.git*" "*__pycache__*" "*.pyc"
-   ```
-
-2. **Deploy to Beanstalk**:
-   - Create new environment with Python 3.9 platform
-   - Upload the ZIP file
-   - Set environment variables for MongoDB and OpenAI
-   - Configure health check endpoint: `/api/v1/health`
-
-
-### Frontend Deployment (Vercel)
-1. **Connect repository** to Vercel
-2. **Configure build settings**:
-   - Framework: Vite
-   - Build command: `npm run build`
-   - Output directory: `dist`
-   - Root directory: `frontend`
-   
-3. **Environment variables**:
-   ```
-   VITE_API_URL=https://your-backend-url.elasticbeanstalk.com
-   ```
-
-4. **Domain configuration**: Update CORS settings in backend with Vercel domain
-
 ## 🧪 Testing the Application
 
 ### Backend Testing
 ```bash
 # Start backend
-cd backend && python -m app.main
+cd backend && python application.py
 
 # Test health endpoint
 curl http://localhost:8000/api/v1/health
@@ -325,16 +334,3 @@ open http://localhost:3000
 3. **Production Ready**: Proper error handling, logging, and deployment configs
 4. **Clean Code**: Well-organized structure, clear naming, good separation
 5. **User Focused**: Intuitive interface, clear feedback, graceful degradation
-
-## 💡 Future Enhancements
-
-- **Multi-language Support**: Conversation in multiple languages
-- **Image Integration**: Visual travel content and maps
-- **Booking Integration**: Direct booking capabilities
-- **Advanced Analytics**: Travel pattern analysis and recommendations
-- **Offline Support**: Progressive Web App with offline capability
-- **Voice Interface**: Speech-to-text for hands-free planning
-
----
-
-This travel agent demonstrates a complete agentic bot flow with real-time streaming, persistent memory, and natural conversation handling - perfect for showcasing modern AI application architecture.

@@ -1,5 +1,6 @@
 /**
  * Sessions store for ChatGPT-style session management
+ * Connected to backend session persistence
  */
 
 import { defineStore } from 'pinia'
@@ -10,15 +11,19 @@ import { v4 as uuidv4 } from 'uuid'
 export interface ChatSession {
   id: string
   title: string
-  lastMessage: string
+  lastMessage: string | null
   lastActivity: Date
   messageCount: number
+  destination?: string | null
+  budget?: number | null
 }
 
 export const useSessionsStore = defineStore('sessions', () => {
   // State
-  const sessions = useLocalStorage<ChatSession[]>('travel-agent-sessions', [])
+  const sessions = ref<ChatSession[]>([])
   const currentSessionId = useLocalStorage('travel-agent-current-session', () => uuidv4())
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
   
   // Getters
   const sortedSessions = computed(() => 
@@ -31,22 +36,64 @@ export const useSessionsStore = defineStore('sessions', () => {
   
   const hasMultipleSessions = computed(() => sessions.value.length > 1)
   
+  // Backend API methods
+  const fetchSessions = async () => {
+    console.log('🔄 Fetching sessions from backend...')
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/chat/sessions')
+      if (!response.ok) throw new Error('Failed to fetch sessions')
+      
+      const data = await response.json()
+      console.log('📊 Backend sessions:', data.total)
+      
+      // Convert backend format to frontend format
+      sessions.value = data.sessions.map((backendSession: any) => ({
+        id: backendSession.session_id,
+        title: backendSession.title,
+        lastMessage: backendSession.last_message,
+        lastActivity: new Date(backendSession.last_updated),
+        messageCount: backendSession.message_count,
+        destination: backendSession.destination,
+        budget: backendSession.budget
+      }))
+      
+      // If no current session or current session doesn't exist, select first one
+      if (!currentSessionId.value || !sessions.value.find(s => s.id === currentSessionId.value)) {
+        if (sessions.value.length > 0) {
+          currentSessionId.value = sessions.value[0].id
+          console.log('✅ Set current session to:', currentSessionId.value)
+        }
+      }
+      
+    } catch (err) {
+      console.error('❌ Failed to fetch sessions:', err)
+      error.value = 'Failed to load sessions'
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
   // Actions
   const createSession = (title: string = 'New Chat') => {
+    const newSessionId = uuidv4()
+    
+    // Add to frontend immediately
     const newSession: ChatSession = {
-      id: uuidv4(),
+      id: newSessionId,
       title,
-      lastMessage: '',
+      lastMessage: null,
       lastActivity: new Date(),
       messageCount: 0
     }
     
-    console.log('Creating new session:', newSession)
+    console.log('🆕 Creating new session:', newSessionId)
     sessions.value.unshift(newSession)
-    currentSessionId.value = newSession.id
-    console.log('Sessions after creation:', sessions.value.length)
+    currentSessionId.value = newSessionId
     
-    return newSession.id
+    return newSessionId
   }
   
   const updateSession = (sessionId: string, updates: Partial<ChatSession>) => {
@@ -56,75 +103,118 @@ export const useSessionsStore = defineStore('sessions', () => {
     }
   }
   
-  const updateSessionTitle = (sessionId: string, firstMessage: string) => {
+  const updateSessionFromMessage = (sessionId: string, message: string) => {
     const session = sessions.value.find(s => s.id === sessionId)
-    if (session && session.title === 'New Chat') {
-      // Generate concise title from first message (ChatGPT style)
-      let title = firstMessage.trim()
+    if (session) {
+      session.lastMessage = message
+      session.lastActivity = new Date()
+      session.messageCount += 1
       
-      // Remove common travel words for conciseness
-      title = title.replace(/plan a trip|find|show me|help me|i want to/gi, '').trim()
-      
-      // Capitalize and limit length
-      title = title.charAt(0).toUpperCase() + title.slice(1)
-      title = title.length > 30 ? title.substring(0, 30) + '...' : title
-      
-      session.title = title || 'Travel Planning'
+      // Auto-update title from first message if it's still default
+      if (session.title === 'New Chat' && message.trim()) {
+        let title = message.trim()
+        // Extract destination/travel intent for title
+        const travelMatch = title.match(/(?:to|visit|trip.*to|go.*to)\s+(\w+(?:\s+\w+)*)/i)
+        if (travelMatch) {
+          title = `Trip to ${travelMatch[1]}`
+        } else {
+          title = title.length > 30 ? title.substring(0, 30) + '...' : title
+        }
+        session.title = title
+      }
     }
   }
   
   const selectSession = (sessionId: string) => {
+    console.log('🎯 Selecting session:', sessionId)
     currentSessionId.value = sessionId
   }
   
-  const deleteSession = (sessionId: string) => {
-    console.log('Deleting session from store:', sessionId)
-    console.log('Sessions before deletion:', sessions.value.length)
+  const deleteSession = async (sessionId: string) => {
+    console.log('🗑️ Deleting session:', sessionId)
     
     // Don't delete if it's the only session
     if (sessions.value.length <= 1) {
-      console.log('Cannot delete last session')
-      return
+      console.log('❌ Cannot delete last session')
+      return false
     }
     
+    try {
+      // Delete from backend
+      const response = await fetch(`http://localhost:8000/api/v1/chat/session/${sessionId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        console.log('✅ Session deleted from backend')
+      }
+    } catch (err) {
+      console.error('❌ Failed to delete session from backend:', err)
+    }
+    
+    // Remove from frontend
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
-    console.log('Sessions after deletion:', sessions.value.length)
     
     // If deleted current session, switch to first available
     if (currentSessionId.value === sessionId) {
       if (sessions.value.length > 0) {
         currentSessionId.value = sessions.value[0].id
-        console.log('Switched current session to:', currentSessionId.value)
+        console.log('🔄 Switched to session:', currentSessionId.value)
       } else {
-        console.log('No sessions left, creating new one')
+        console.log('🆕 Creating new session after deletion')
         createSession()
       }
     }
+    
+    return true
   }
   
-  const clearAllSessions = () => {
+  const refreshSessions = async () => {
+    console.log('🔄 Refreshing sessions...')
+    await fetchSessions()
+  }
+  
+  const clearAllSessions = async () => {
+    try {
+      // Clear all sessions from backend (would need endpoint)
+      for (const session of sessions.value) {
+        try {
+          await fetch(`http://localhost:8000/api/v1/chat/session/${session.id}`, {
+            method: 'DELETE'
+          })
+        } catch (err) {
+          console.error('Failed to delete session:', session.id)
+        }
+      }
+    } catch (err) {
+      console.error('Error clearing sessions:', err)
+    }
+    
     sessions.value = []
     createSession()
   }
   
-  // Initialize first session if none exist
-  const initializeSessions = () => {
+  // Initialize sessions on store creation
+  const initialize = async () => {
+    console.log('🚀 Initializing sessions store...')
+    await fetchSessions()
+    
+    // If no sessions exist, create first one
     if (sessions.value.length === 0) {
-      console.log('Creating initial session')
-      const initialSessionId = createSession()
-      console.log('Initial session created:', initialSessionId)
-    } else {
-      console.log('Existing sessions found:', sessions.value.length)
+      console.log('🆕 No sessions found, creating first session')
+      createSession()
     }
   }
   
-  // Initialize on store creation
-  initializeSessions()
+  // Auto-initialize
+  initialize()
   
   return {
     // State
     sessions,
     currentSessionId,
+    isLoading,
+    error,
     
     // Getters
     sortedSessions,
@@ -132,11 +222,14 @@ export const useSessionsStore = defineStore('sessions', () => {
     hasMultipleSessions,
     
     // Actions
+    fetchSessions,
+    refreshSessions,
     createSession,
     updateSession,
-    updateSessionTitle,
+    updateSessionFromMessage,
     selectSession,
     deleteSession,
-    clearAllSessions
+    clearAllSessions,
+    initialize
   }
 })

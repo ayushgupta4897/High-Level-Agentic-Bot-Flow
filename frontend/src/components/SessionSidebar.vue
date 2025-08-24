@@ -15,8 +15,13 @@
 
     <!-- Sessions List -->
     <div class="flex-1 overflow-y-auto p-2 space-y-1">
-      <!-- Debug Info -->
-      <div v-if="sessionsStore.sessions.length === 0" class="text-center py-8">
+      <!-- Loading State -->
+      <div v-if="sessionsStore.isLoading" class="text-center py-8">
+        <div class="text-gray-400 text-sm">Loading sessions...</div>
+      </div>
+      
+      <!-- No Sessions -->
+      <div v-else-if="sessionsStore.sessions.length === 0" class="text-center py-8">
         <div class="text-gray-400 text-sm">No sessions found</div>
         <button @click="createNewChat" class="mt-2 text-blue-400 text-xs underline">
           Create First Session
@@ -48,12 +53,17 @@
               <div class="text-xs text-gray-400 truncate">
                 {{ session.lastMessage || 'No messages yet' }}
               </div>
+              <!-- Travel Details -->
+              <div v-if="session.destination || session.budget" class="text-xs text-gray-500 mt-0.5">
+                <span v-if="session.destination">📍{{ session.destination }}</span>
+                <span v-if="session.budget" class="ml-2">💰₹{{ session.budget.toLocaleString() }}</span>
+              </div>
             </div>
           </div>
           
           <!-- Session Metadata -->
           <div class="mt-1 flex items-center justify-between text-xs text-gray-500">
-            <span>{{ session.messageCount }} msg</span>
+            <span>{{ session.messageCount }} msgs</span>
             <span>{{ formatSessionTime(session.lastActivity) }}</span>
           </div>
         </button>
@@ -86,6 +96,12 @@
           + Add
         </button>
         <button
+          @click="refreshSessions"
+          class="text-xs text-green-400 hover:text-green-300 transition-colors"
+        >
+          🔄 Refresh
+        </button>
+        <button
           @click="clearAllSessions"
           class="text-xs text-gray-400 hover:text-white transition-colors"
         >
@@ -113,10 +129,16 @@ const emit = defineEmits<{
 }>()
 
 // Debug sessions on mount
-onMounted(() => {
-  console.log('SessionSidebar mounted')
+onMounted(async () => {
+  console.log('🔄 SessionSidebar mounted')
   console.log('Sessions available:', sessionsStore.sessions.length)
-  console.log('Sessions:', sessionsStore.sessions)
+  
+  // Refresh sessions from backend on mount
+  if (sessionsStore.sessions.length === 0) {
+    console.log('📥 No sessions, fetching from backend...')
+    await sessionsStore.fetchSessions()
+  }
+  
   console.log('Current session ID:', sessionsStore.currentSessionId)
 })
 
@@ -148,47 +170,29 @@ const selectSession = async (sessionId: string) => {
 }
 
 const deleteSession = async (sessionId: string) => {
-  console.log('Deleting session:', sessionId)
+  console.log('🗑️ Deleting session:', sessionId)
   
-  // Don't allow deleting the last session
-  if (sessionsStore.sessions.length <= 1) {
-    console.log('Cannot delete last session')
-    return
-  }
-  
-  try {
-    // Call backend to clear session data
-    const response = await fetch(`http://localhost:8000/api/v1/chat/session/${sessionId}`, {
-      method: 'DELETE'
-    })
-    
-    if (response.ok) {
-      console.log('Session cleared from backend:', sessionId)
+  const success = await sessionsStore.deleteSession(sessionId)
+  if (success) {
+    // If it was the current session and we switched, update UI
+    if (sessionsStore.currentSessionId !== sessionId) {
+      await chatStore.switchSession(sessionsStore.currentSessionId)
+      preferencesStore.clearAllPreferences()
+      if (chatStore.memoryUpdates && Object.keys(chatStore.memoryUpdates).length > 0) {
+        preferencesStore.setFromMemoryUpdates(chatStore.memoryUpdates)
+      }
+      emit('session-changed', sessionsStore.currentSessionId)
     }
-  } catch (error) {
-    console.error('Failed to clear session from backend:', error)
-  }
-  
-  // Remove from frontend storage
-  const wasCurrentSession = sessionId === sessionsStore.currentSessionId
-  sessionsStore.deleteSession(sessionId)
-  console.log('Session deleted from frontend store')
-  
-  // If deleted current session, switch to the first available session
-  if (wasCurrentSession && sessionsStore.sessions.length > 0) {
-    const newSessionId = sessionsStore.sessions[0].id
-    sessionsStore.selectSession(newSessionId)
-    chatStore.sessionId = newSessionId
-    chatStore.clearAll()
-    chatStore.initializeWelcome()
-    preferencesStore.clearAllPreferences()
-    emit('session-changed', newSessionId)
-    console.log('Switched to session:', newSessionId)
   }
 }
 
-const clearAllSessions = () => {
-  sessionsStore.clearAllSessions()
+const refreshSessions = async () => {
+  console.log('🔄 Refreshing sessions from backend...')
+  await sessionsStore.refreshSessions()
+}
+
+const clearAllSessions = async () => {
+  await sessionsStore.clearAllSessions()
   chatStore.newSession()
   preferencesStore.clearAllPreferences()
   chatStore.initializeWelcome()

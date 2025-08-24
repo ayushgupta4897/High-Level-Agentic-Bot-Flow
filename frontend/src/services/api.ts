@@ -87,6 +87,6 @@ export const apiClient = new APIClient()
 const isDevelopment = import.meta.env.DEV
 const baseUrl = isDevelopment 
   ? 'http://localhost:8000'
-  : 'https://your-backend-url.com' // Update with your Beanstalk URL
+  : '' // To be updated with Production URL
 
 export const productionApiClient = new APIClient(baseUrl)

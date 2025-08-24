@@ -33,18 +33,8 @@ export function useChat() {
     }
     chatStore.addMessage(userMessage)
     
-    // Update session with first message title
-    console.log('Current message count:', chatStore.messageCount)
-    if (chatStore.messageCount <= 2) { // Only user + welcome message
-      console.log('Updating session title with:', content)
-      sessionsStore.updateSessionTitle(sessionId, content)
-    }
-    
-    // Update session metadata
-    sessionsStore.updateSession(sessionId, {
-      lastMessage: content.length > 50 ? content.substring(0, 50) + '...' : content,
-      messageCount: chatStore.messageCount
-    })
+    // Update session metadata locally
+    sessionsStore.updateSessionFromMessage(sessionId, content)
 
     try {
       chatStore.setTyping(true)
@@ -155,11 +145,14 @@ export function useChat() {
                   // Save current session to cache (conversation history persistence)
                   chatStore.saveCurrentSession()
                   
-                  // Update session with final message count
-                  sessionsStore.updateSession(sessionId, {
-                    messageCount: chatStore.messageCount,
-                    lastMessage: chatStore.messages[chatStore.messages.length - 1]?.content.substring(0, 50) + '...' || ''
-                  })
+                  // Refresh sessions from backend to sync any changes (titles, preferences, etc.)
+                  console.log('💫 Message complete, refreshing sessions from backend...')
+                  try {
+                    await sessionsStore.refreshSessions()
+                    console.log('✅ Sessions synced with backend')
+                  } catch (err) {
+                    console.error('❌ Failed to refresh sessions:', err)
+                  }
                   
                   return // Exit the function
                   

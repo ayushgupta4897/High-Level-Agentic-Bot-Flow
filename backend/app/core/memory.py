@@ -27,6 +27,14 @@ class MemoryManager:
             content, 
             metadata
         )
+        
+        # Update session metadata when user sends a message
+        if role == "user":
+            await mongodb_client.create_or_update_session(
+                self.session_id,
+                last_message=content
+            )
+        
         logger.debug(f"Saved {role} message for session {self.session_id}")
     
     async def get_conversation_history(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -42,6 +50,18 @@ class MemoryManager:
                 await mongodb_client.save_preference(self.session_id, key, value)
                 updates[key] = value
                 logger.debug(f"Updated preference {key} for session {self.session_id}")
+        
+        # If key travel preferences were updated, regenerate session title
+        key_travel_fields = ['destination', 'origin', 'budget']
+        if any(field in updates for field in key_travel_fields):
+            # Get the latest user message to help with title generation
+            messages = await self.get_conversation_history(limit=1)
+            last_message = messages[0]["content"] if messages else None
+            
+            await mongodb_client.create_or_update_session(
+                self.session_id,
+                last_message=last_message
+            )
         
         return updates
     
@@ -84,17 +104,22 @@ class MemoryManager:
         
         travel_context = {
             "destination": preferences.get("destination"),
-            "origin": preferences.get("origin", "Delhi"),
+            "origin": preferences.get("origin"),
             "budget": preferences.get("budget"),
             "dates": preferences.get("dates"),
-            "people_count": preferences.get("people_count", 1),
-            "dietary_preferences": preferences.get("dietary_preferences", []),
-            "activity_preferences": preferences.get("activity_preferences", []),
+            "people_count": preferences.get("people_count"),
+            "dietary_preferences": preferences.get("dietary_preferences"),
+            "activity_preferences": preferences.get("activity_preferences"),
             "accommodation_type": preferences.get("accommodation_type")
         }
         
-        # Remove null values
-        return {k: v for k, v in travel_context.items() if v is not None}
+        # Remove null/empty values
+        filtered_context = {}
+        for k, v in travel_context.items():
+            if v is not None and v != [] and v != "":
+                filtered_context[k] = v
+        
+        return filtered_context
     
     async def clear_session(self):
         """Clear all session data"""

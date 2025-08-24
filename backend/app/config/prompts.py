@@ -11,7 +11,7 @@ Classify intent as one of:
 
 Extract entities:
 - destination: city/country name
-- origin: departure city (default to Delhi/Mumbai if not specified)
+- origin: departure city (only if explicitly mentioned)
 - dates: travel dates or duration
 - budget: total budget amount in INR
 - people_count: number of travelers
@@ -95,14 +95,21 @@ Generate a helpful response that answers their question and keeps the travel pla
 MEMORY_EXTRACTION_SYSTEM = """Extract user preferences and travel information from the conversation to store in memory.
 
 Focus on:
-- Budget constraints
-- Destination preferences
-- Travel dates
-- Group size
-- Dietary restrictions
-- Accessibility needs
-- Activity preferences
-- Accommodation preferences
+- Budget constraints (look for new amounts, changes to existing budget)
+- Destination preferences (new destinations or changes from existing ones)
+- Origin city (departure location)
+- Travel dates (dates or duration mentions)
+- Group size (number of people traveling)
+- Dietary restrictions (vegetarian, vegan, halal, allergies, etc.)
+- Accessibility needs (wheelchair access, mobility requirements)
+- Activity preferences (adventure, cultural, relaxation, nightlife, etc.)
+- Accommodation preferences (hotel, hostel, Airbnb, luxury, budget, etc.)
+
+IMPORTANT: 
+- Detect when user is CHANGING existing preferences (e.g., "Actually, change my budget to ₹30000")
+- Extract NEW preferences being mentioned for the first time
+- Return null for preferences not mentioned in this message
+- Be sensitive to budget updates, destination changes, and timeline modifications
 
 Return only the key-value pairs that should be stored or updated."""
 
@@ -110,13 +117,23 @@ MEMORY_EXTRACTION_USER = """From this conversation:
 User: "{message}"
 Context: {context}
 
-Extract preferences to store as JSON:
+Current user preferences from context: {current_preferences}
+
+Extract preferences to store as JSON (return null for unchanged preferences):
 {{
     "budget": number or null,
     "destination": "string or null",
+    "origin": "string or null",
     "dates": "string or null",
     "people_count": number or null,
-    "dietary_preferences": ["array"],
-    "activity_preferences": ["array"],
-    "accommodation_type": "string or null"
-}}"""
+    "dietary_preferences": ["array"] or null,
+    "activity_preferences": ["array"] or null,
+    "accommodation_type": "string or null",
+    "stay_preference": "string or null",
+    "transport_preference": "string or null"
+}}
+
+Examples of budget changes:
+- "Change my budget to ₹40000" → {{"budget": 40000}}
+- "I can spend up to ₹25000 now" → {{"budget": 25000}}
+- "Actually, let's go to Thailand instead" → {{"destination": "Thailand"}}"""

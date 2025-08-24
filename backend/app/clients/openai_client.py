@@ -186,11 +186,15 @@ class OpenAIClient:
         
         from app.config.prompts import MEMORY_EXTRACTION_SYSTEM, MEMORY_EXTRACTION_USER
         
+        # Get current preferences from context
+        current_preferences = context.get("preferences", {})
+        
         messages = [
             {"role": "system", "content": MEMORY_EXTRACTION_SYSTEM},
             {"role": "user", "content": MEMORY_EXTRACTION_USER.format(
                 message=message,
-                context=json.dumps(context)
+                context=json.dumps(context),
+                current_preferences=json.dumps(current_preferences)
             )}
         ]
         
@@ -200,7 +204,12 @@ class OpenAIClient:
                 temperature=0.1, 
                 response_format="json"
             )
-            return json.loads(response)
+            preferences = json.loads(response)
+            
+            # Filter out null values to avoid overwriting existing preferences with null
+            filtered_preferences = {k: v for k, v in preferences.items() if v is not None}
+            
+            return filtered_preferences
             
         except json.JSONDecodeError:
             logger.error(f"Failed to parse preferences JSON: {response}")

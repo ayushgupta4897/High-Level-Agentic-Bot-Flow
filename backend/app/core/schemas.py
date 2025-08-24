@@ -113,3 +113,29 @@ class ErrorEvent(SSEEvent):
 class TypingEvent(SSEEvent):
     """Typing indicator SSE event"""
     typing: bool = Field(..., description="Typing status")
+
+# Session Management Schemas
+class SessionSummary(BaseModel):
+    """Session summary schema"""
+    session_id: str = Field(..., description="Session identifier")
+    title: str = Field(..., description="Session title/name")
+    last_message: Optional[str] = Field(default=None, description="Last user message")
+    last_updated: datetime = Field(..., description="Last updated timestamp")
+    created_at: datetime = Field(..., description="Session creation time")
+    message_count: int = Field(default=0, description="Total message count")
+    destination: Optional[str] = Field(default=None, description="Travel destination if any")
+    budget: Optional[int] = Field(default=None, description="Budget if specified")
+    
+class SessionListResponse(BaseModel):
+    """Session list response"""
+    sessions: List[SessionSummary] = Field(..., description="List of sessions")
+    total: int = Field(..., description="Total session count")
+
+class SessionUpdateRequest(BaseModel):
+    """Session update request"""
+    title: Optional[str] = Field(default=None, description="New session title")
+    
+class PreferenceUpdateRequest(BaseModel):
+    """Enhanced preference update request"""
+    session_id: str = Field(..., description="Session identifier")
+    updates: Dict[str, Any] = Field(..., description="Preference updates to apply")
