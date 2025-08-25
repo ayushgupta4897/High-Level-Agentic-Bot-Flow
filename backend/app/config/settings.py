@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
     # Database
-    MONGODB_URL: str = ""
+    MONGODB_URL: str = "" # need to add mongodb url here, for now it is empty because repo is public
     DATABASE_NAME: str = "travel_agent"
     
     # OpenAI

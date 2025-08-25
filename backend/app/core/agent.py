@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from app.clients.openai_client import openai_client
+from app.services.ai_service import ai_service
 from app.core.memory import MemoryManager
 from app.core.sse import sse_manager
 from app.config.constants import INTENTS, AGENT_ACTIONS, SEARCH_TEMPLATES
@@ -42,7 +42,7 @@ class TravelAgent:
             )
             
             # Analyze intent
-            analysis = await openai_client.analyze_intent(message, context)
+            analysis = await ai_service.analyze_message_intent(message, context)
             
             # Process based on intent
             if analysis["intent"] == INTENTS["TRAVEL_REQUEST"]:
@@ -98,7 +98,7 @@ class TravelAgent:
             yield json.dumps({"type": "action", "description": "Analyzing your travel request"})
             
             # Analyze intent
-            analysis = await openai_client.analyze_intent(message, context)
+            analysis = await ai_service.analyze_message_intent(message, context)
             
             # Extract and update preferences from ANY message (not just travel requests)
             entities = analysis["entities"]
@@ -110,8 +110,8 @@ class TravelAgent:
                     pref_key = "activity_preferences" if key == "preferences" else key
                     preferences_to_update[pref_key] = entities[key]
             
-            # Also extract preferences using OpenAI for better accuracy
-            additional_prefs = await openai_client.extract_preferences(message, context)
+            # Also extract preferences using AI service for better accuracy
+            additional_prefs = await ai_service.extract_user_preferences(message, context)
             if additional_prefs:
                 preferences_to_update.update(additional_prefs)
             
@@ -140,7 +140,7 @@ class TravelAgent:
             yield json.dumps({"type": "response_start", "message": "Generating your travel recommendations..."})
             
             full_response = ""
-            async for chunk in openai_client.generate_response_stream(message, context, search_results if search_results else None):
+            async for chunk in ai_service.generate_travel_response_stream(message, context, search_results if search_results else None):
                 full_response += chunk
                 # Use json.dumps to properly escape the content
                 yield json.dumps({"type": "token", "content": chunk})
@@ -240,7 +240,7 @@ class TravelAgent:
             "Generating travel recommendations"
         )
         
-        response = await openai_client.generate_response(
+        response = await ai_service.generate_travel_response(
             analysis.get("original_message", ""),
             context,
             search_results
@@ -258,7 +258,7 @@ class TravelAgent:
         entities = analysis["entities"]
         
         # Extract preferences to update
-        preferences = await openai_client.extract_preferences(
+        preferences = await ai_service.extract_user_preferences(
             analysis.get("original_message", ""),
             context
         )
@@ -276,7 +276,7 @@ class TravelAgent:
         # Generate confirmation response
         from app.config.prompts import PREFERENCE_UPDATE_PROMPT
         
-        response = await openai_client.generate_response(
+        response = await ai_service.generate_travel_response(
             analysis.get("original_message", ""),
             context,
             f"Preferences updated: {preferences}"
@@ -297,7 +297,7 @@ class TravelAgent:
             "Answering your question"
         )
         
-        response = await openai_client.generate_response(message, context)
+        response = await ai_service.generate_travel_response(message, context)
         return response
     
     async def _handle_general_message(
@@ -313,5 +313,5 @@ class TravelAgent:
             "Generating response"
         )
         
-        response = await openai_client.generate_response(message, context)
+        response = await ai_service.generate_travel_response(message, context)
         return response

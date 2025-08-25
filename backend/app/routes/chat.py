@@ -19,7 +19,7 @@ from app.core.schemas import (
 from app.core.agent import TravelAgent
 from app.core.sse import sse_generator
 from app.core.memory import MemoryManager
-from app.clients.mongodb_client import mongodb_client
+from app.services.session_service import session_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -159,7 +159,7 @@ async def get_all_sessions(limit: int = 50):
     """Get all chat sessions for the sidebar"""
     
     try:
-        sessions_data = await mongodb_client.get_all_sessions(limit=limit)
+        sessions_data = await session_service.get_all_sessions_with_metadata(limit=limit)
         
         sessions = []
         for session_data in sessions_data:
@@ -192,7 +192,7 @@ async def update_session(session_id: str, request: SessionUpdateRequest):
     
     try:
         if request.title:
-            await mongodb_client.update_session_title(session_id, request.title)
+            await session_service.update_session_title(session_id, request.title)
         
         return {
             "status": "success",

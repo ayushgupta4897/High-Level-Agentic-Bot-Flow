@@ -4,7 +4,9 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from app.clients.mongodb_client import mongodb_client
+from app.services.conversation_service import conversation_service
+from app.services.session_service import session_service
+from app.repositories.preference_repository import preference_repository
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ class MemoryManager:
         metadata: Optional[Dict[str, Any]] = None
     ):
         """Save conversation message"""
-        await mongodb_client.save_message(
+        await conversation_service.save_message(
             self.session_id, 
             role, 
             content, 
@@ -30,7 +32,7 @@ class MemoryManager:
         
         # Update session metadata when user sends a message
         if role == "user":
-            await mongodb_client.create_or_update_session(
+            await session_service.create_or_update_session(
                 self.session_id,
                 last_message=content
             )
@@ -39,7 +41,7 @@ class MemoryManager:
     
     async def get_conversation_history(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent conversation messages"""
-        return await mongodb_client.get_conversation_history(self.session_id, limit)
+        return await conversation_service.get_conversation_history(self.session_id, limit)
     
     async def update_preferences(self, preferences: Dict[str, Any]) -> Dict[str, Any]:
         """Update multiple user preferences"""
@@ -47,7 +49,7 @@ class MemoryManager:
         
         for key, value in preferences.items():
             if value is not None:  # Only update non-null values
-                await mongodb_client.save_preference(self.session_id, key, value)
+                await preference_repository.save_preference(self.session_id, key, value)
                 updates[key] = value
                 logger.debug(f"Updated preference {key} for session {self.session_id}")
         
@@ -58,7 +60,7 @@ class MemoryManager:
             messages = await self.get_conversation_history(limit=1)
             last_message = messages[0]["content"] if messages else None
             
-            await mongodb_client.create_or_update_session(
+            await session_service.create_or_update_session(
                 self.session_id,
                 last_message=last_message
             )
@@ -67,15 +69,15 @@ class MemoryManager:
     
     async def get_preferences(self) -> Dict[str, Any]:
         """Get all user preferences"""
-        return await mongodb_client.get_preferences(self.session_id)
+        return await preference_repository.get_preferences(self.session_id)
     
     async def get_preference(self, key: str) -> Optional[Any]:
         """Get specific preference"""
-        return await mongodb_client.get_preference(self.session_id, key)
+        return await preference_repository.get_preference(self.session_id, key)
     
     async def delete_preference(self, key: str):
         """Delete specific preference"""
-        await mongodb_client.delete_preference(self.session_id, key)
+        await preference_repository.delete_preference(self.session_id, key)
     
     async def get_context(self) -> Dict[str, Any]:
         """Get complete context for the session"""
@@ -123,7 +125,7 @@ class MemoryManager:
     
     async def clear_session(self):
         """Clear all session data"""
-        await mongodb_client.clear_session(self.session_id)
+        await session_service.delete_session_completely(self.session_id)
         logger.info(f"Cleared all data for session {self.session_id}")
     
     async def get_summary(self) -> Dict[str, Any]:

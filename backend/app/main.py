@@ -22,12 +22,8 @@ async def lifespan(app: FastAPI):
     
     # Startup
     logger.info("Starting Travel Agent API...")
-    try:
-        await mongodb_client.connect()
-        logger.info("Database connected successfully")
-    except Exception as e:
-        logger.error(f"Failed to connect to database: {e}")
-        raise
+    await mongodb_client.connect()
+    logger.info("Database connected successfully")
     
     yield
     

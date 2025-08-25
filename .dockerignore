@@ -1,0 +1,63 @@
+# Git and version control
+.git
+.gitignore
+
+# Documentation and screenshots
+README.md
+SETUP.md
+ASSIGNMENT.md
+example screenshots/
+
+# Development files
+.vscode/
+.idea/
+
+# Node modules and build artifacts
+frontend/node_modules/
+frontend/dist/
+node_modules/
+package-lock.json
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/.coverage
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Makefile (not needed in production)
+Makefile
+

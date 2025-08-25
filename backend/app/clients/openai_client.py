@@ -1,6 +1,5 @@
-"""OpenAI client for AI operations"""
+"""OpenAI client for basic API operations"""
 
-import json
 import logging
 from typing import Dict, List, Any, Optional
 from openai import AsyncOpenAI
@@ -10,7 +9,7 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 class OpenAIClient:
-    """OpenAI client wrapper for chat completions and web search"""
+    """OpenAI client wrapper - handles API connections and basic operations only"""
     
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -103,117 +102,6 @@ class OpenAIClient:
         except Exception as e:
             logger.error(f"Web search failed: {str(e)}")
             raise Exception(f"Search failed: {str(e)}")
-    
-    async def analyze_intent(self, message: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze user message intent and extract entities"""
-        
-        from app.config.prompts import INTENT_ANALYSIS_SYSTEM, INTENT_ANALYSIS_USER
-        
-        messages = [
-            {"role": "system", "content": INTENT_ANALYSIS_SYSTEM},
-            {"role": "user", "content": INTENT_ANALYSIS_USER.format(
-                context=json.dumps(context), 
-                message=message
-            )}
-        ]
-        
-        try:
-            response = await self.chat_completion(
-                messages, 
-                temperature=0.3, 
-                response_format="json"
-            )
-            return json.loads(response)
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse intent analysis JSON: {response}")
-            return {
-                "intent": "general",
-                "entities": {},
-                "requires_clarification": True,
-                "confidence": "low"
-            }
-    
-    async def generate_response(
-        self, 
-        user_message: str, 
-        context: Dict[str, Any], 
-        search_results: Optional[str] = None
-    ) -> str:
-        """Generate conversational response"""
-        
-        from app.config.prompts import RESPONSE_GENERATION_SYSTEM, TRAVEL_RESPONSE_PROMPT
-        
-        messages = [
-            {"role": "system", "content": RESPONSE_GENERATION_SYSTEM},
-            {"role": "user", "content": TRAVEL_RESPONSE_PROMPT.format(
-                user_message=user_message,
-                context=json.dumps(context),
-                search_results=search_results or "No search results available"
-            )}
-        ]
-        
-        return await self.chat_completion(messages, temperature=0.8)
-    
-    async def generate_response_stream(
-        self, 
-        user_message: str, 
-        context: Dict[str, Any], 
-        search_results: Optional[str] = None
-    ):
-        """Generate streaming conversational response"""
-        
-        from app.config.prompts import RESPONSE_GENERATION_SYSTEM, TRAVEL_RESPONSE_PROMPT
-        
-        messages = [
-            {"role": "system", "content": RESPONSE_GENERATION_SYSTEM},
-            {"role": "user", "content": TRAVEL_RESPONSE_PROMPT.format(
-                user_message=user_message,
-                context=json.dumps(context),
-                search_results=search_results or "No search results available"
-            )}
-        ]
-        
-        async for chunk in self.chat_completion_stream(messages, temperature=0.8):
-            yield chunk
-    
-    async def extract_preferences(
-        self, 
-        message: str, 
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Extract user preferences from conversation"""
-        
-        from app.config.prompts import MEMORY_EXTRACTION_SYSTEM, MEMORY_EXTRACTION_USER
-        
-        # Get current preferences from context
-        current_preferences = context.get("preferences", {})
-        
-        messages = [
-            {"role": "system", "content": MEMORY_EXTRACTION_SYSTEM},
-            {"role": "user", "content": MEMORY_EXTRACTION_USER.format(
-                message=message,
-                context=json.dumps(context),
-                current_preferences=json.dumps(current_preferences)
-            )}
-        ]
-        
-        try:
-            response = await self.chat_completion(
-                messages, 
-                temperature=0.1, 
-                response_format="json"
-            )
-            preferences = json.loads(response)
-            
-            # Filter out null values to avoid overwriting existing preferences with null
-            filtered_preferences = {k: v for k, v in preferences.items() if v is not None}
-            
-            return filtered_preferences
-            
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse preferences JSON: {response}")
-            return {}
 
 # Global client instance
 openai_client = OpenAIClient()
